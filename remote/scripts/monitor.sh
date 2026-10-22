@@ -53,3 +53,45 @@ echo "Memory Usage: ${MEM_USAGE}%"
 DISK_USAGE=$(df -P / | awk 'NR == 2 {gsub(/%/, "", $5); print $5}')
 # print the disk usage to the terminal
 echo "Disk Usage: ${DISK_USAGE}%"
+
+
+# ===========================================
+# check network usage; going to use RX (received) and TX (transmitted) values
+# figure out which network interface the server is using
+NET_IFACE=$(ip -4 route show default | awk '{for (i=1; i<=NF; i++) if ($i=="dev") {print $(i+1); exit}}')
+# make sure we actually found an interface - just an error handling condition
+if [[ -z "$NET_IFACE" ]]; then
+    echo "Could not find the network interface."
+    exit 1
+fi
+# find the files that track received and sent bytes
+RX_FILE="/sys/class/net/$NET_IFACE/statistics/rx_bytes"
+TX_FILE="/sys/class/net/$NET_IFACE/statistics/tx_bytes"
+# make sure the files can be read
+if [[ ! -r "$RX_FILE" || ! -r "$TX_FILE" ]]; then
+    echo "Could not read network statistics."
+    exit 1
+fi
+# take our first network readings
+read -r RX1 < "$RX_FILE"
+read -r TX1 < "$TX_FILE"
+# wait a second and check again
+sleep 1
+# check network usage; going to use RX (received) and TX (transmitted) values
+read -r RX2 < "$RX_FILE"
+read -r TX2 < "$TX_FILE"
+# calculate how many bytes moved during that second
+RX_DIFF=$((RX2 - RX1))
+TX_DIFF=$((TX2 - TX1))
+# make sure the counters didn't decrease or reset
+if (( RX_DIFF < 0 || TX_DIFF < 0 )); then
+    echo "Network counters changed unexpectedly."
+    exit 1
+fi
+# convert bytes per second into KiB per second - just a conversion
+RX_KIB_S=$((RX_DIFF / 1024))
+TX_KIB_S=$((TX_DIFF / 1024))
+# print the network interface information and KiB/s uploaded and downloaded
+echo "Network Interface: $NET_IFACE"
+echo "Network Download: ${RX_KIB_S} KiB/s"
+echo "Network Upload: ${TX_KIB_S} KiB/s"

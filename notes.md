@@ -105,6 +105,35 @@ https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html
 https://www.gnu.org/software/gawk/manual/html_node/String-Functions.html
 
 
+### <u>Network monitoring</u><br>
+```
+NET_IFACE=$(ip -4 route show default | awk '{for (i=1; i<=NF; i++) if ($i=="dev") {print $(i+1); exit}}')
+```
+
+Part | Meaning
+---|---
+ip -4 route show default | Displays default IPv4 routes
+\| | Sends the result to awk
+for | Loops through the fields in the output
+NF | The number of fields in the current line
+$i == "dev" | Finds the field containing dev
+$(i+1) | The field immediately after dev, containing the interface name
+exit | Stops awk after finding the first match
+
+
+- Used ip route show default to find which network interface the server uses.<br>
+- Linux also has some files under /sys/class/net/ that keep track of network traffic.<br>
+- rx_bytes tracks received bytes.<br>
+- tx_bytes tracks transmitted bytes.<br>
+- The numbers keep increasing, so I had to check them twice, one second apart, to figure <br>
+- out how much data was moving.<br>
+- Divided by 1024 to get KiB/s.<br>
+- This is measuring actual network traffic, not a percentage of the maximum available bandwidth.
+
+References:<br>
+https://docs.kernel.org/networking/statistics.html<br>
+https://man7.org/linux/man-pages/man8/ip-route.8.html<br>
+
 
 ---
 ## AWS Notes
