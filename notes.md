@@ -135,6 +135,17 @@ https://docs.kernel.org/networking/statistics.html<br>
 https://man7.org/linux/man-pages/man8/ip-route.8.html<br>
 
 
+### <u>Writing the JSON File</u>
+Part | Meaning
+---|---
+${BASH_SOURCE[0]} | Path to the current Bash script
+dirname | Removes the filename, leaving the directory
+cd | Moves into that directory
+&& | Only runs the next command if the first succeeds
+pwd | Prints the current directory
+
+
+
 ---
 ## AWS Notes
 how to connect to the ec2 instance

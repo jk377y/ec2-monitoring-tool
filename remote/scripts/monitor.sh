@@ -1,5 +1,19 @@
 #!/bin/bash
 
+
+# find where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# this is where I'll save the monitoring data
+DATA_DIR="$SCRIPT_DIR/../public/data"
+# make sure the folder exists
+mkdir -p "$DATA_DIR"
+# the main JSON file and a temporary one - the process will rapidly rewrite itself
+OUT_FILE="$DATA_DIR/metrics.json"
+TEMP_FILE="$DATA_DIR/metrics.tmp.json"
+
+
+
+
 # grabs some basic info about the server
 SERVER_NAME=$(hostname) # the name of the host, probably 10.10.10.xxx with the EC2 labs
 CHECK_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ") # the time of the check in UTC
@@ -95,3 +109,5 @@ TX_KIB_S=$((TX_DIFF / 1024))
 echo "Network Interface: $NET_IFACE"
 echo "Network Download: ${RX_KIB_S} KiB/s"
 echo "Network Upload: ${TX_KIB_S} KiB/s"
+
+
