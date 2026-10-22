@@ -68,7 +68,6 @@ https://www.gnu.org/software/bash/manual/html_node/Shell-Arithmetic.html
 
 
 ### <u>Memory monitor</u>
-Memory monitoring
 
 Used the free command to check RAM usage.
 
@@ -82,6 +81,28 @@ References:
 
 https://man7.org/linux/man-pages/man1/free.1.html
 https://www.gnu.org/software/gawk/manual/gawk.html
+
+
+### <u>Disk monitoring</u>
+```DISK_USAGE=$(df -P / | awk 'NR == 2 {gsub(/%/, "", $5); print $5}')```
+df -P / produces this:
+|Filesystem | 1024-blocks | Used | Available | Capacity | Mounted on
+---|---|---|---|---|---
+/dev/xvda1 | 8192000 | 2048000 | 6144000 | 25% | /
+
+NR — The current line number being processed.<br>
+== 2 — Only do something when we're on line 2.<br>
+print $5 — Print the fifth column.<br>
+
+Part | Meaning
+gsub | Global substitution (replace matching text)
+/%/	| Find the % symbol
+""	| Replace it with nothing
+$5	| Perform that replacement on column 5
+
+Reference:<br>
+https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html
+https://www.gnu.org/software/gawk/manual/html_node/String-Functions.html
 
 
 

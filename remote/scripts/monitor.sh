@@ -46,3 +46,10 @@ else
 fi
 # print the memory usage to the terminal window
 echo "Memory Usage: ${MEM_USAGE}%"
+
+
+# ===========================================
+# check how much space is being used on the main disk
+DISK_USAGE=$(df -P / | awk 'NR == 2 {gsub(/%/, "", $5); print $5}')
+# print the disk usage to the terminal
+echo "Disk Usage: ${DISK_USAGE}%"
