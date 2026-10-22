@@ -32,3 +32,17 @@ else
 fi
 # print the resulting % to the terminal
 echo "CPU Usage: ${CPU_USAGE}%"
+
+
+# ===========================================
+# grab the total RAM and how much is still available
+MEM_TOTAL=$(free -b | awk '$1 == "Mem:" {print $2}')
+MEM_AVAILABLE=$(free -b | awk '$1 == "Mem:" {print $7}')
+# figure out what percentage of RAM is being used
+if (( MEM_TOTAL > 0 )); then
+    MEM_USAGE=$((100 * (MEM_TOTAL - MEM_AVAILABLE) / MEM_TOTAL))
+else
+    MEM_USAGE=0
+fi
+# print the memory usage to the terminal window
+echo "Memory Usage: ${MEM_USAGE}%"

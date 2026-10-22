@@ -50,7 +50,7 @@ the output should contain:
 9–10 | guest fields | Guest CPU accounting, already included in earlier counters
 ---
 
-### CPU monitoring
+### <u>CPU monitoring</u>
 
 Found out Linux has a /proc/stat file that tracks CPU activity.
 
@@ -65,6 +65,25 @@ https://www.kernel.org/doc/html/v6.8/filesystems/proc.html
 
 Bash arithmetic:
 https://www.gnu.org/software/bash/manual/html_node/Shell-Arithmetic.html
+
+
+### <u>Memory monitor</u>
+Memory monitoring
+
+Used the free command to check RAM usage.
+
+free -h makes the numbers easier to read, but free -b gives us bytes for the script.
+
+Learned that the available column is probably better to use than just free because Linux uses memory for caching.
+
+Also learned how to pipe commands together with | and use awk to grab specific columns.
+
+References:
+
+https://man7.org/linux/man-pages/man1/free.1.html
+https://www.gnu.org/software/gawk/manual/gawk.html
+
+
 
 ---
 ## AWS Notes
