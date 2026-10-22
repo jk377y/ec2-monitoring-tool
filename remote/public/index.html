@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="dark" />
+		<title>EC2 Monitoring Tool</title>
+		<link rel="stylesheet" href="styles.css" />
+	</head>
+	<body>
+		<main class="dashboard" aria-label="EC2 instance monitoring">
+			<header class="topbar">
+				<div>
+					<h1>EC2 Monitoring Tool</h1>
+					<p class="subtitle">Linux System Health Dashboard</p>
+				</div>
+				<span id="connection" class="connection pending"><span class="status-dot"></span>Connecting...</span>
+			</header>
+
+			<section class="instance-info" aria-label="Instance information">
+				<div><span class="meta-label">Instance</span><strong id="instance-os">Loading...</strong></div>
+				<div><span class="meta-label">SSH User</span><strong id="instance-user">—</strong></div>
+				<div><span class="meta-label">Hostname</span><strong id="instance-host">—</strong></div>
+				<div><span class="meta-label">Last update</span><strong id="last-update">Waiting for first reading...</strong></div>
+			</section>
+
+			<section class="metric-grid" aria-label="System metrics">
+				<article class="metric-card" id="cpu-card">
+					<div class="metric-header">
+						<h2>CPU Utilization</h2>
+						<span class="metric-dot"></span>
+					</div>
+					<strong id="cpu-value" class="metric-value">—</strong>
+					<div class="track"><div id="cpu-bar" class="fill"></div></div>
+					<small id="cpu-status" class="metric-status">Waiting for data</small>
+				</article>
+				<article class="metric-card" id="memory-card">
+					<div class="metric-header">
+						<h2>Memory Usage</h2>
+						<span class="metric-dot"></span>
+					</div>
+					<strong id="memory-value" class="metric-value">—</strong>
+					<div class="track"><div id="memory-bar" class="fill"></div></div>
+					<small id="memory-status" class="metric-status">Waiting for data</small>
+				</article>
+				<article class="metric-card" id="disk-card">
+					<div class="metric-header">
+						<h2>Disk Usage</h2>
+						<span class="metric-dot"></span>
+					</div>
+					<strong id="disk-value" class="metric-value">—</strong>
+					<div class="track"><div id="disk-bar" class="fill"></div></div>
+					<small id="disk-status" class="metric-status">Waiting for data</small>
+				</article>
+				<article class="metric-card network-card" id="network-card">
+					<div class="metric-header">
+						<h2>Network Traffic</h2>
+						<span class="metric-dot neutral-dot"></span>
+					</div>
+					<div class="network-values">
+						<div><span>Download</span><strong id="network-rx">—</strong></div>
+						<div><span>Upload</span><strong id="network-tx">—</strong></div>
+					</div>
+					<small class="metric-status">Measured throughput, not link capacity</small>
+				</article>
+			</section>
+
+			<section class="events" aria-label="Recent system events">
+				<div class="events-heading">
+					<h2>Recent System Events</h2>
+					<span id="uptime"></span>
+				</div>
+				<ul id="event-list">
+					<li class="event neutral">Waiting for the first JSON update...</li>
+				</ul>
+			</section>
+			<footer>Local monitoring via SSH tunnel <span aria-hidden="true">·</span> <span>5-second collection interval</span></footer>
+		</main>
+		<script src="app.js" defer></script>
+	</body>
+</html>
