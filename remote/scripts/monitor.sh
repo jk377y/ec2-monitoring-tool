@@ -111,3 +111,26 @@ echo "Network Download: ${RX_KIB_S} KiB/s"
 echo "Network Upload: ${TX_KIB_S} KiB/s"
 
 
+
+
+# basically assigning values to the json structure
+# grab the time right before saving the data
+CHECK_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+# save everything to a temporary JSON file first
+cat > "$TEMP_FILE" <<EOF
+{
+  "hostname": "$SERVER_NAME",
+  "timestamp": "$CHECK_TIME",
+  "cpu_percent": $CPU_USAGE,
+  "memory_percent": $MEM_USAGE,
+  "disk_percent": $DISK_USAGE,
+  "network_interface": "$NET_IFACE",
+  "network_rx_kib_s": $RX_KIB_S,
+  "network_tx_kib_s": $TX_KIB_S
+}
+EOF
+# replace the old JSON with the newest readings
+mv -f "$TEMP_FILE" "$OUT_FILE"
+echo "JSON updated: $CHECK_TIME"
+# go back and collect everything again
+done

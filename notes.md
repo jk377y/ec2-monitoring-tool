@@ -146,6 +146,22 @@ pwd | Prints the current directory
 
 
 
+### <u>Writing the JSON File</u>
+
+Started saving our metrics to a JSON file instead of just printing everything in the terminal.
+
+Used a while true loop so the script keeps running. The CPU and network checks already take about 2 seconds combined, so I'm going to use that for our refresh rate.
+
+Also learned about EOF, which lets us write several lines to a file at once.
+
+I'm saving the JSON to a temporary file first, then using mv to replace the old file. This should keep the website from reading the JSON while it's still being written.
+
+References:<br>
+https://www.gnu.org/software/bash/manual/html_node/Looping-Constructs.html<br>
+https://www.gnu.org/software/bash/manual/html_node/Redirections.html<br>
+https://www.gnu.org/software/coreutils/manual/html_node/mv-invocation.html<br>
+
+
 ---
 ## AWS Notes
 how to connect to the ec2 instance
