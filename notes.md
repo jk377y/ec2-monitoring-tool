@@ -162,13 +162,38 @@ https://www.gnu.org/software/bash/manual/html_node/Redirections.html<br>
 https://www.gnu.org/software/coreutils/manual/html_node/mv-invocation.html<br>
 
 
+### <u>Managing background processes</u>
+- Started working on manage.sh so I don't have to leave the terminal running just to collect metrics.
+- Learned about PIDs (Process IDs). Linux gives each running process a number that we can use to find or stop it.
+- Used nohup with & to run the monitoring script in the background.
+- Also found out that kill -0 doesn't actually kill anything. It just checks whether we can signal the process.
+- The script saves its PID in a file so we can find it again.
+
+References:
+
+https://www.gnu.org/software/coreutils/manual/html_node/nohup-invocation.html
+
+https://www.gnu.org/software/bash/manual/html_node/Special-Parameters.html
+
+https://www.gnu.org/software/coreutils/manual/html_node/kill-invocation.html
+
 ---
 ## AWS Notes
 how to connect to the ec2 instance
 
 
 ---
+
 ## Documentation references
+File transfer from local env to ec2 via scp (I needed to xfer the script for initial testing, it will be automated later): <br>
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/linux-file-transfer-scp.html?utm_source=chatgpt.com
+
+```
+scp -i ./labsuser.pem \
+  remote/scripts/monitor.sh \
+  ec2-user@<LAB_PUBLIC_IP>:~/ec2-monitoring-tool/remote/scripts/
+```
+
 
 
 ---

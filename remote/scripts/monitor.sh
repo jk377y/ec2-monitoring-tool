@@ -13,14 +13,12 @@ TEMP_FILE="$DATA_DIR/metrics.tmp.json"
 
 
 
-
+# keep collecting metrics until I stop the script
+while true; do
 # grabs some basic info about the server
-SERVER_NAME=$(hostname) # the name of the host, probably 10.10.10.xxx with the EC2 labs
-CHECK_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ") # the time of the check in UTC
-
+SERVER_NAME=$(hostname) # grabs the server's hostname
 # print the info so I can make sure it's working
 echo "Server: $SERVER_NAME" # print the hostname to the terminal
-echo "Checked: $CHECK_TIME" # print the current time to the terminal
 
 
 # ===========================================
@@ -112,7 +110,7 @@ echo "Network Upload: ${TX_KIB_S} KiB/s"
 
 
 
-
+# ===========================================
 # basically assigning values to the json structure
 # grab the time right before saving the data
 CHECK_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
