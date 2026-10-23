@@ -236,28 +236,136 @@ else
     error "One or more uploaded files are missing or empty."
     exit 1
 fi
-
-
-
-
-#! check json data for first and second reads
-
+# start monitoring and make sure it actually works
+echo ""
+info "Starting monitoring collector..."
 if ssh -i "$KEY_PATH" \
     -o IdentitiesOnly=yes \
     -o ConnectTimeout=10 \
     -o WarnWeakCrypto=no-pq-kex \
     "$SSH_USER@$EC2_HOST" 'bash -s' <<'REMOTE_COLLECTOR'; then
-
-
-cd "$HOME/ec2-monitoring-tool/remote/public"
-mkdir "data"
+# These commands run on EC2, so the local color functions aren't available here.
+# go to the scripts folder on EC2
+cd "$HOME/ec2-monitoring-tool/remote/scripts" || exit 1
+# use manage.sh to start monitoring in the background
+bash manage.sh start || exit 1
 JSON_FILE="$HOME/ec2-monitoring-tool/remote/public/data/metrics.json"
+# give the collector a few chances to write valid JSON
+READY=0
+for attempt in {1..6}; do
+    if [[ -s "$JSON_FILE" ]] && python3 -m json.tool "$JSON_FILE" >/dev/null 2>&1; then
+        READY=1
+        break
+    fi
+    sleep 2
+done
+if (( READY == 0 )); then
+    printf "\033[0;31m[ERROR]\033[0m No valid JSON after startup.\n"
+    exit 1
+fi
+# make sure the JSON file is still being updated
 FIRST_UPDATE=$(date -r "$JSON_FILE" +%s) || exit 1
 sleep 5
 SECOND_UPDATE=$(date -r "$JSON_FILE" +%s) || exit 1
 if (( SECOND_UPDATE <= FIRST_UPDATE )); then
-    echo "[ERROR] JSON exists but is not updating."
+    printf "\033[0;31m[ERROR]\033[0m JSON exists but is not updating.\n"
+    exit 1
+fi
+# check the updated JSON one more time
+if ! python3 -m json.tool "$JSON_FILE" >/dev/null 2>&1; then
+    printf "\033[0;31m[ERROR]\033[0m Updated JSON is invalid.\n"
+    exit 1
+fi
+printf "\033[0;32m[OK]\033[0m JSON is valid and updating.\n"
+REMOTE_COLLECTOR
+    ok "Monitoring collector is ready."
+else
+    error "Monitoring collector failed to start or update its data."
     exit 1
 fi
 
-echo "[OK] JSON is valid and updating."
+#! starting up the web server on ec2
+echo ""
+info "Checking dashboard HTTP server..."
+if ssh -i "$KEY_PATH" \
+    -o IdentitiesOnly=yes \
+    -o ConnectTimeout=10 \
+    -o WarnWeakCrypto=no-pq-kex \
+    "$SSH_USER@$EC2_HOST" 'bash -s' <<'REMOTE_WEB'; then
+# This block also runs on EC2, so print colored labels directly.
+# set up paths for the website, process info, and logs
+WEB_DIR="$HOME/ec2-monitoring-tool/remote/public"
+RUN_DIR="$HOME/ec2-monitoring-tool/remote/run"
+LOG_DIR="$HOME/ec2-monitoring-tool/remote/logs"
+mkdir -p "$RUN_DIR" "$LOG_DIR"
+# check whether something is already using port 8000
+if python3 -c 'import socket; socket.create_connection(("127.0.0.1", 8000), timeout=1)' >/dev/null 2>&1; then
+    printf "\033[1;33m[INFO]\033[0m Port 8000 is in use. Checking existing server.\n"
+else
+    # start Python in the background and save its PID
+    nohup python3 -m http.server 8000 \
+        --bind 127.0.0.1 \
+        --directory "$WEB_DIR" \
+        >> "$LOG_DIR/web.log" 2>&1 < /dev/null &
+    echo "$!" > "$RUN_DIR/web.pid"
+    printf "\033[1;33m[INFO]\033[0m Started Python HTTP server (PID %s).\n" "$!"
+fi
+# verify the server is actually serving our dashboard
+READY=0
+for attempt in {1..5}; do
+    if python3 -c '
+import json
+from pathlib import Path
+from urllib.request import urlopen
+web_dir = Path.home() / "ec2-monitoring-tool/remote/public"
+base_url = "http://127.0.0.1:8000"
+with urlopen(base_url + "/index.html", timeout=2) as response:
+    served_html = response.read()
+if served_html != (web_dir / "index.html").read_bytes():
+    raise ValueError("Wrong dashboard directory")
+with urlopen(base_url + "/data/metrics.json", timeout=2) as response:
+    metrics = json.load(response)
+if "cpu_percent" not in metrics:
+    raise ValueError("Missing monitoring data")
+' >/dev/null 2>&1; then
+        READY=1
+        break
+    fi
+    sleep 1
+done
+if (( READY == 0 )); then
+    printf "\033[0;31m[ERROR]\033[0m HTTP server unavailable or serving the wrong files.\n"
+    echo "Check port 8000 and $LOG_DIR/web.log"
+    exit 1
+fi
+printf "\033[0;32m[OK]\033[0m Dashboard HTML and JSON are available.\n"
+REMOTE_WEB
+    ok "Dashboard HTTP server is ready."
+else
+    error "Dashboard HTTP server failed verification."
+    exit 1
+fi
+
+#! connect local host browser to the ec2 dashboard through ssh
+echo ""
+info "Opening SSH tunnel to EC2..."
+
+echo ""
+echo "Dashboard: http://127.0.0.1:8080/index.html"
+echo "Keep this terminal open while using the dashboard."
+echo "Press Ctrl+C when finished."
+echo ""
+
+# Forward local port 8080 to port 8000 on EC2.
+ssh -i "$KEY_PATH" \
+    -o IdentitiesOnly=yes \
+    -o ConnectTimeout=10 \
+    -o WarnWeakCrypto=no-pq-kex \
+    -o ExitOnForwardFailure=yes \
+    -N \
+    -L 127.0.0.1:8080:127.0.0.1:8000 \
+    "$SSH_USER@$EC2_HOST"
+
+# We'll see this when SSH closes.
+echo ""
+info "SSH tunnel closed."

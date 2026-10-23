@@ -205,10 +205,20 @@ Wanted to clear the OpenSSH warning messages in terminal:  https://www.openssh.o
 ** The server may need to be upgraded. See https://openssh.com/pq.html
 ```
 
+---
 
-<br>
-<br>
-<br>
+- Added automatic startup for the monitoring script to start.sh.
+- It uses manage.sh to start the collector in the background.
+- I'm also checking that the JSON file exists, contains valid data, and is actually changing. I ran into problems earlier where the JSON file was still there, but the monitoring process had stopped.
+- Used date -r to check when the file was last modified.
+
+Reference doc:  https://www.gnu.org/software/coreutils/manual/html_node/Options-for-date.html
+
+---
+
+Adding SSH tunneling for local browser access
+
+Reference:  https://man.openbsd.org/ssh
 
 ---
 ## AWS Notes
