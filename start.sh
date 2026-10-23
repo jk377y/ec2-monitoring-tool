@@ -64,14 +64,20 @@ if [[ -z "$KEY_NAME" || ! -f "$KEY_PATH" ]]; then
 fi
 # limit access to the private key
 chmod 400 "$KEY_PATH" || exit 1
+
+# Share the same SSH settings between SSH and SCP.
+SSH_OPTIONS=(-i "$KEY_PATH" -o IdentitiesOnly=yes -o ConnectTimeout=10)
+
+# Older SSH clients (including some Macs) don't recognize WarnWeakCrypto.
+# ssh -G checks the option without making a network connection.
+if ssh -G -o WarnWeakCrypto=no-pq-kex "$EC2_HOST" >/dev/null 2>&1; then
+    SSH_OPTIONS+=(-o WarnWeakCrypto=no-pq-kex)
+fi
 echo ""
 info "Connecting to $SSH_USER@$EC2_HOST ..."
 echo ""
-# try SSH before attempting to deploy anything; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
-if ssh -i "$KEY_PATH" \
-    -o IdentitiesOnly=yes \
-    -o ConnectTimeout=10 \
-    -o WarnWeakCrypto=no-pq-kex \
+# try SSH before attempting to deploy anything
+if ssh "${SSH_OPTIONS[@]}" \
     "$SSH_USER@$EC2_HOST" \
     'printf "Connected as: "; id -un; if [ -r /etc/os-release ]; then . /etc/os-release; printf "Linux version: %s\n" "$PRETTY_NAME"; fi'
 then
@@ -100,13 +106,10 @@ for FILE in "${PROJECT_FILES[@]}"; do
     fi
 done
 ok "All project files found."
-# check the EC2 instance for the tools our scripts need; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+# check the EC2 instance for the tools our scripts need
 echo ""
 info "Checking software on EC2..."
-if ssh -i "$KEY_PATH" \
-    -o IdentitiesOnly=yes \
-    -o ConnectTimeout=10 \
-    -o WarnWeakCrypto=no-pq-kex \
+if ssh "${SSH_OPTIONS[@]}" \
     "$SSH_USER@$EC2_HOST" 'bash -s' <<'REMOTE_CHECK'; then
 # Remote commands run in their own Bash process, so give them colors too.
 REMOTE_GREEN='\033[0;32m'
@@ -163,13 +166,10 @@ else
     echo "Deployment stopped before making changes."
     exit 1
 fi
-# automated the mkdir folders and subfulders to transfer files; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+# automated the mkdir folders and subfulders to transfer files
 echo ""
 info "Creating project folders on EC2..."
-if ssh -i "$KEY_PATH" \
-    -o IdentitiesOnly=yes \
-    -o ConnectTimeout=10 \
-    -o WarnWeakCrypto=no-pq-kex \
+if ssh "${SSH_OPTIONS[@]}" \
     "$SSH_USER@$EC2_HOST" \
     'mkdir -p "$HOME/ec2-monitoring-tool/remote/scripts" "$HOME/ec2-monitoring-tool/remote/public"'
 then
@@ -178,13 +178,10 @@ else
     error "Could not create the remote folders."
     exit 1
 fi
-# automated the upload of scripts to the ec2 instance; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+# automated the upload of scripts to the ec2 instance
 echo ""
 info "Uploading monitoring scripts..."
-if scp -q -i "$KEY_PATH" \
-    -o IdentitiesOnly=yes \
-    -o ConnectTimeout=10 \
-    -o WarnWeakCrypto=no-pq-kex \
+if scp -q "${SSH_OPTIONS[@]}" \
     "$PROJECT_DIR/remote/scripts/monitor.sh" \
     "$PROJECT_DIR/remote/scripts/manage.sh" \
     "$SSH_USER@$EC2_HOST:ec2-monitoring-tool/remote/scripts/"
@@ -196,14 +193,11 @@ else
     error "Failed to upload monitoring scripts."
     exit 1
 fi
-# automated the upload of dashboard files; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+# automated the upload of dashboard files
 echo ""
 info "Uploading dashboard files..."
 
-if scp -q -i "$KEY_PATH" \
-    -o IdentitiesOnly=yes \
-    -o ConnectTimeout=10 \
-    -o WarnWeakCrypto=no-pq-kex \
+if scp -q "${SSH_OPTIONS[@]}" \
     "$PROJECT_DIR/remote/public/index.html" \
     "$PROJECT_DIR/remote/public/styles.css" \
     "$PROJECT_DIR/remote/public/app.js" \
@@ -217,13 +211,10 @@ else
     error "Failed to upload dashboard files."
     exit 1
 fi
-# doing a verification check to make sure all files were transferred from local env to the ec2 successfully; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+# doing a verification check to make sure all files were transferred from local env to the ec2 successfully
 echo ""
 info "Verifying uploaded files..."
-if ssh -i "$KEY_PATH" \
-    -o IdentitiesOnly=yes \
-    -o ConnectTimeout=10 \
-    -o WarnWeakCrypto=no-pq-kex \
+if ssh "${SSH_OPTIONS[@]}" \
     "$SSH_USER@$EC2_HOST" \
     'test -s "$HOME/ec2-monitoring-tool/remote/scripts/monitor.sh" &&
      test -s "$HOME/ec2-monitoring-tool/remote/scripts/manage.sh" &&
@@ -239,10 +230,7 @@ fi
 # start monitoring and make sure it actually works
 echo ""
 info "Starting monitoring collector..."
-if ssh -i "$KEY_PATH" \
-    -o IdentitiesOnly=yes \
-    -o ConnectTimeout=10 \
-    -o WarnWeakCrypto=no-pq-kex \
+if ssh "${SSH_OPTIONS[@]}" \
     "$SSH_USER@$EC2_HOST" 'bash -s' <<'REMOTE_COLLECTOR'; then
 # These commands run on EC2, so the local color functions aren't available here.
 # go to the scripts folder on EC2
@@ -288,10 +276,7 @@ fi
 #! starting up the web server on ec2
 echo ""
 info "Checking dashboard HTTP server..."
-if ssh -i "$KEY_PATH" \
-    -o IdentitiesOnly=yes \
-    -o ConnectTimeout=10 \
-    -o WarnWeakCrypto=no-pq-kex \
+if ssh "${SSH_OPTIONS[@]}" \
     "$SSH_USER@$EC2_HOST" 'bash -s' <<'REMOTE_WEB'; then
 # This block also runs on EC2, so print colored labels directly.
 # set up paths for the website, process info, and logs
@@ -347,7 +332,7 @@ else
     exit 1
 fi
 
-# Connect to the dashboard and open the default Windows browser.
+# Connect to the dashboard and open the default browser.
 echo ""
 info "Opening SSH tunnel to EC2..."
 
@@ -367,10 +352,7 @@ fi
 
 # Start forwarding in the background just long enough to check it's ready.
 # We still keep this terminal open and close this tunnel with Ctrl+C.
-ssh -i "$KEY_PATH" \
-    -o IdentitiesOnly=yes \
-    -o ConnectTimeout=10 \
-    -o WarnWeakCrypto=no-pq-kex \
+ssh "${SSH_OPTIONS[@]}" \
     -o ExitOnForwardFailure=yes \
     -N \
     -L 127.0.0.1:8080:127.0.0.1:8000 \
@@ -409,9 +391,15 @@ fi
 ok "SSH tunnel is ready."
 echo "Dashboard: $DASHBOARD_URL"
 
-# Ask Windows to open the link in its default browser (Chrome, if set).
-# This works even when VS Code won't turn the printed URL into a link.
-if command -v powershell.exe >/dev/null 2>&1; then
+# Open the dashboard in the default browser on macOS or Windows.
+# This avoids relying on whether the terminal makes the URL clickable.
+if [[ "$OSTYPE" == darwin* ]]; then
+    if open "$DASHBOARD_URL" >/dev/null 2>&1; then
+        ok "Opened dashboard in your default browser."
+    else
+        info "Couldn't open the browser automatically. Use the URL above."
+    fi
+elif command -v powershell.exe >/dev/null 2>&1; then
     if powershell.exe -NoProfile -NonInteractive -Command "Start-Process '$DASHBOARD_URL'" >/dev/null 2>&1; then
         ok "Opened dashboard in your default browser."
     else
