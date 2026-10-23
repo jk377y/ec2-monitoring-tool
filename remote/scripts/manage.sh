@@ -20,7 +20,9 @@ is_running() {
     kill -0 "$PID" 2>/dev/null || return 1
     # double-check that the PID belongs to our script
     [[ -r "/proc/$PID/cmdline" ]] || return 1
-    tr '\0' '\n' < "/proc/$PID/cmdline" | grep -Fxq -- "$MONITOR_SCRIPT"
+    #tr '\0' '\n' < "/proc/$PID/cmdline" | grep -Fxq -- "$MONITOR_SCRIPT"
+    # the process might disappear while we're checking it
+    tr '\0' '\n' 2>/dev/null < "/proc/$PID/cmdline" | grep -Fxq -- "$MONITOR_SCRIPT"
 }
 # figure out which command the user entered
 case "${1:-}" in

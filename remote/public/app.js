@@ -80,6 +80,16 @@ function formatNetwork(kib) {
 	}
 	return `${value.toFixed(1)} KiB/s`;
 }
+// Show how long the EC2 instance has been up.
+function formatUptime(rawSeconds) {
+    if (rawSeconds == null || !Number.isFinite(Number(rawSeconds))) return '';
+    const seconds = Number(rawSeconds);
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `Uptime: ${days ? `${days}d ` : ''}${hours}h ${minutes}m`;
+}
+
 // turn the metric indicators gray when readings aren't current
 function setMetricsPending() {
 	for (const name of ['cpu', 'memory', 'disk']) {
@@ -111,7 +121,9 @@ async function updateDashboard() {
 		}
 		// fill the instance information
 		el('instance-host').textContent = data.hostname || 'Unknown';
-		el('instance-os').textContent = 'Linux EC2';
+		el('instance-os').textContent = data.os || 'Linux EC2';
+		el('instance-user').textContent = data.username || '—';
+		el('uptime').textContent = formatUptime(data.uptime_seconds);
 		el('last-update').textContent = age < 2 ? 'Just now' : `${Math.floor(age)} seconds ago`;
 		// update the three percentage cards
 		updateMetric('cpu', data.cpu_percent);

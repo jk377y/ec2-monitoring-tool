@@ -13,6 +13,14 @@ TEMP_FILE="$DATA_DIR/metrics.tmp.json"
 
 
 
+# These details won't normally change during a monitoring session.
+SERVER_USER=$(id -un) # account running this script (usually ec2-user)
+SERVER_OS="Linux"
+if [[ -r /etc/os-release ]]; then
+    . /etc/os-release
+    SERVER_OS="${PRETTY_NAME:-Linux}"
+fi
+
 # keep collecting metrics until I stop the script
 while true; do
 # grabs some basic info about the server
@@ -114,10 +122,17 @@ echo "Network Upload: ${TX_KIB_S} KiB/s"
 # basically assigning values to the json structure
 # grab the time right before saving the data
 CHECK_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# /proc/uptime starts with how many seconds this server has been running.
+read -r UPTIME_RAW _ < /proc/uptime
+UPTIME_SECONDS="${UPTIME_RAW%%.*}" # remove the decimal part
 # save everything to a temporary JSON file first
 cat > "$TEMP_FILE" <<EOF
 {
   "hostname": "$SERVER_NAME",
+  "os": "$SERVER_OS",
+  "username": "$SERVER_USER",
+  "uptime_seconds": $UPTIME_SECONDS,
   "timestamp": "$CHECK_TIME",
   "cpu_percent": $CPU_USAGE,
   "memory_percent": $MEM_USAGE,

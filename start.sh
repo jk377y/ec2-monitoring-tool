@@ -141,7 +141,7 @@ for CMD in "${REQUIRED_COMMANDS[@]}"; do
     fi
 done
 # make sure we can access the Linux system information
-if [[ -r /proc/stat && -r /proc/net/route && -d /sys/class/net ]]; then
+if [[ -r /proc/stat && -r /proc/uptime && -r /proc/net/route && -d /sys/class/net ]]; then
     printf '%b[OK]%b Linux system statistics available.\n' "$REMOTE_GREEN" "$REMOTE_RESET"
 else
     printf '%b[ERROR]%b Cannot access Linux system statistics.\n' "$REMOTE_RED" "$REMOTE_RESET"
@@ -247,7 +247,8 @@ if ssh -i "$KEY_PATH" \
 # These commands run on EC2, so the local color functions aren't available here.
 # go to the scripts folder on EC2
 cd "$HOME/ec2-monitoring-tool/remote/scripts" || exit 1
-# use manage.sh to start monitoring in the background
+# Restart the managed collector so redeploying picks up monitor.sh edits.
+bash manage.sh stop || exit 1
 bash manage.sh start || exit 1
 JSON_FILE="$HOME/ec2-monitoring-tool/remote/public/data/metrics.json"
 # give the collector a few chances to write valid JSON
@@ -346,17 +347,26 @@ else
     exit 1
 fi
 
-#! connect local host browser to the ec2 dashboard through ssh
+# Connect to the dashboard and open the default Windows browser.
 echo ""
 info "Opening SSH tunnel to EC2..."
 
-echo ""
-echo "Dashboard: http://127.0.0.1:8080/index.html"
-echo "Keep this terminal open while using the dashboard."
-echo "Press Ctrl+C when finished."
-echo ""
+DASHBOARD_URL="http://127.0.0.1:8080/index.html"
 
-# Forward local port 8080 to port 8000 on EC2.
+# Git Bash normally includes curl; we use it to confirm the tunnel is ready.
+if ! command -v curl >/dev/null 2>&1; then
+    error "Couldn't find curl on this computer."
+    exit 1
+fi
+
+# Don't accidentally use an older tunnel or another application on port 8080.
+if curl -sS --max-time 1 "$DASHBOARD_URL" >/dev/null 2>&1; then
+    error "Local port 8080 is already serving a website. Close the old tunnel first."
+    exit 1
+fi
+
+# Start forwarding in the background just long enough to check it's ready.
+# We still keep this terminal open and close this tunnel with Ctrl+C.
 ssh -i "$KEY_PATH" \
     -o IdentitiesOnly=yes \
     -o ConnectTimeout=10 \
@@ -364,8 +374,57 @@ ssh -i "$KEY_PATH" \
     -o ExitOnForwardFailure=yes \
     -N \
     -L 127.0.0.1:8080:127.0.0.1:8000 \
-    "$SSH_USER@$EC2_HOST"
+    "$SSH_USER@$EC2_HOST" &
+TUNNEL_PID=$!
 
-# We'll see this when SSH closes.
+# Only stop the SSH process started by this script.
+close_tunnel() {
+    if kill -0 "$TUNNEL_PID" 2>/dev/null; then
+        kill "$TUNNEL_PID" 2>/dev/null || true
+        wait "$TUNNEL_PID" 2>/dev/null || true
+    fi
+}
+trap close_tunnel EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Wait until the webpage is reachable through our tunnel.
+TUNNEL_READY=0
+for attempt in {1..20}; do
+    if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+        break
+    fi
+    if curl -fsS --max-time 2 "$DASHBOARD_URL" >/dev/null 2>&1; then
+        TUNNEL_READY=1
+        break
+    fi
+    sleep 0.5
+done
+
+if (( TUNNEL_READY == 0 )); then
+    error "SSH tunnel didn't become ready on port 8080."
+    exit 1
+fi
+
+ok "SSH tunnel is ready."
+echo "Dashboard: $DASHBOARD_URL"
+
+# Ask Windows to open the link in its default browser (Chrome, if set).
+# This works even when VS Code won't turn the printed URL into a link.
+if command -v powershell.exe >/dev/null 2>&1; then
+    if powershell.exe -NoProfile -NonInteractive -Command "Start-Process '$DASHBOARD_URL'" >/dev/null 2>&1; then
+        ok "Opened dashboard in your default browser."
+    else
+        info "Couldn't open the browser automatically. Use the URL above."
+    fi
+else
+    info "Open the URL above in your browser."
+fi
+
+echo "Keep this terminal open while using the dashboard."
+echo "Press Ctrl+C when finished."
+
+# Wait for the tunnel so the launcher doesn't immediately close.
+wait "$TUNNEL_PID"
 echo ""
 info "SSH tunnel closed."
