@@ -69,8 +69,8 @@ echo "Disk Usage: ${DISK_USAGE}%"
 
 # ===========================================
 # check network usage; going to use RX (received) and TX (transmitted) values
-# figure out which network interface the server is using
-NET_IFACE=$(ip -4 route show default | awk '{for (i=1; i<=NF; i++) if ($i=="dev") {print $(i+1); exit}}')
+# find the main network interface using Linux's routing information
+NET_IFACE=$(awk 'NR > 1 && $2 == "00000000" && $8 == "00000000" {print $1; exit}' /proc/net/route)
 # make sure we actually found an interface - just an error handling condition
 if [[ -z "$NET_IFACE" ]]; then
     echo "Could not find the network interface."

@@ -148,12 +148,9 @@ pwd | Prints the current directory
 
 ### <u>Writing the JSON File</u>
 
-Started saving our metrics to a JSON file instead of just printing everything in the terminal.
-
-Used a while true loop so the script keeps running. The CPU and network checks already take about 2 seconds combined, so I'm going to use that for our refresh rate.
-
-Also learned about EOF, which lets us write several lines to a file at once.
-
+Started saving our metrics to a JSON file instead of just printing everything in the terminal.<br>
+Used a while true loop so the script keeps running. The CPU and network checks already take about 2 seconds combined, so I'm going to use that for our refresh rate.<br>
+Also learned about EOF, which lets us write several lines to a file at once.<br>
 I'm saving the JSON to a temporary file first, then using mv to replace the old file. This should keep the website from reading the JSON while it's still being written.
 
 References:<br>
@@ -171,11 +168,47 @@ https://www.gnu.org/software/coreutils/manual/html_node/mv-invocation.html<br>
 
 References:
 
-https://www.gnu.org/software/coreutils/manual/html_node/nohup-invocation.html
+https://www.gnu.org/software/coreutils/manual/html_node/nohup-invocation.html<br>
+https://www.gnu.org/software/bash/manual/html_node/Special-Parameters.html<br>
+https://www.gnu.org/software/coreutils/manual/html_node/kill-invocation.html<br>
 
-https://www.gnu.org/software/bash/manual/html_node/Special-Parameters.html
 
-https://www.gnu.org/software/coreutils/manual/html_node/kill-invocation.html
+
+### <u>START.SH</u>
+---
+```
+read -r -p "EC2 public IP or DNS: " EC2_HOST
+```
+- read collects input.
+- -r prevents Bash from treating backslashes as escape characters.
+- -p displays a prompt.
+- EC2_HOST stores the answer.
+
+---
+
+This will provide a default value for the SSH user for convenience for logging into the lab environments, however, this value will be adjustable if desired
+```
+SSH_USER="${SSH_USER:-ec2-user}"
+```
+
+---
+This script will execute a series of pass/fail checks to verify:
+- ssh connection is successful
+- all linux dependencies are installed
+- all project files are uploaded and verified
+
+References:<br>
+Wanted to clear the OpenSSH warning messages in terminal:  https://www.openssh.org/pq.html
+```
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+```
+
+
+<br>
+<br>
+<br>
 
 ---
 ## AWS Notes

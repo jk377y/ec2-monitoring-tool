@@ -1,0 +1,263 @@
+#!/bin/bash
+
+# let's get colorful
+# Colors for terminal messages.
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+LIGHT_BLUE='\033[38;5;45m'
+RESET='\033[0m'
+# Only color the labels, not the rest of the message.
+ok() {
+    printf '%b[OK]%b %s\n' "$GREEN" "$RESET" "$1"
+}
+error() {
+    printf '%b[ERROR]%b %s\n' "$RED" "$RESET" "$1"
+}
+info() {
+    printf '%b[INFO]%b %s\n' "$YELLOW" "$RESET" "$1"
+}
+file() {
+    printf '%b%s%b\n' "$LIGHT_BLUE" "$1" "$RESET"
+}
+
+# find the project folder, even if I run this from somewhere else
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$PROJECT_DIR" || exit 1
+echo "======================================"
+echo "       EC2 MONITORING TOOL"
+echo "======================================"
+echo ""
+# ask for the IP address and SSH username
+read -r -p "EC2 public IP or DNS: " EC2_HOST
+read -r -p "SSH username [ec2-user]: " SSH_USER
+# use ec2-user if they leave the username blank
+SSH_USER="${SSH_USER:-ec2-user}"
+# make sure an address was provided
+if [[ -z "$EC2_HOST" ]]; then
+    error "An EC2 address is required."
+    exit 1
+fi
+# look for PEM files in this project folder
+shopt -s nullglob
+PEM_FILES=("$PROJECT_DIR"/*.pem)
+shopt -u nullglob
+DEFAULT_KEY=""
+# if there's only one PEM file, suggest using it
+if (( ${#PEM_FILES[@]} == 1 )); then
+    DEFAULT_KEY="${PEM_FILES[0]##*/}"
+fi
+# show the available keys if there are several
+if (( ${#PEM_FILES[@]} > 1 )); then
+    info "Found these PEM files:"
+    for KEY in "${PEM_FILES[@]}"; do
+        echo "  ${KEY##*/}"
+    done
+fi
+read -r -p "PEM filename [$DEFAULT_KEY]: " KEY_NAME
+KEY_NAME="${KEY_NAME:-$DEFAULT_KEY}"
+# the PEM file should be inside our local project folder
+KEY_PATH="$PROJECT_DIR/$KEY_NAME"
+if [[ -z "$KEY_NAME" || ! -f "$KEY_PATH" ]]; then
+    error "Could not find the PEM file."
+    exit 1
+fi
+# limit access to the private key
+chmod 400 "$KEY_PATH" || exit 1
+echo ""
+info "Connecting to $SSH_USER@$EC2_HOST ..."
+echo ""
+# try SSH before attempting to deploy anything; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+if ssh -i "$KEY_PATH" \
+    -o IdentitiesOnly=yes \
+    -o ConnectTimeout=10 \
+    -o WarnWeakCrypto=no-pq-kex \
+    "$SSH_USER@$EC2_HOST" \
+    'printf "Connected as: "; id -un; if [ -r /etc/os-release ]; then . /etc/os-release; printf "Linux version: %s\n" "$PRETTY_NAME"; fi'
+then
+    echo ""
+    ok "SSH connection successful."
+else
+    echo ""
+    error "SSH connection failed."
+    echo "Check the IP, username, PEM key, and port 22 access."
+    exit 1
+fi
+# make sure all the project files are here before uploading anything
+echo ""
+info "Checking local project files..."
+PROJECT_FILES=(
+    "remote/scripts/monitor.sh"
+    "remote/scripts/manage.sh"
+    "remote/public/index.html"
+    "remote/public/styles.css"
+    "remote/public/app.js"
+)
+for FILE in "${PROJECT_FILES[@]}"; do
+    if [[ ! -f "$PROJECT_DIR/$FILE" ]]; then
+        error "Missing file: $FILE"
+        exit 1
+    fi
+done
+ok "All project files found."
+# check the EC2 instance for the tools our scripts need; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+echo ""
+info "Checking software on EC2..."
+if ssh -i "$KEY_PATH" \
+    -o IdentitiesOnly=yes \
+    -o ConnectTimeout=10 \
+    -o WarnWeakCrypto=no-pq-kex \
+    "$SSH_USER@$EC2_HOST" 'bash -s' <<'REMOTE_CHECK'; then
+# Remote commands run in their own Bash process, so give them colors too.
+REMOTE_GREEN='\033[0;32m'
+REMOTE_RED='\033[0;31m'
+REMOTE_RESET='\033[0m'
+
+# check the tools needed by monitor.sh, manage.sh, and the web server
+REQUIRED_COMMANDS=(
+    bash
+    awk
+    free
+    df
+    hostname
+    date
+    sleep
+    nohup
+    grep
+    tr
+    mv
+    mkdir
+    cat
+    rm
+    python3
+)
+MISSING=0
+for CMD in "${REQUIRED_COMMANDS[@]}"; do
+    if command -v "$CMD" >/dev/null 2>&1; then
+        printf '%b[OK]%b %s\n' "$REMOTE_GREEN" "$REMOTE_RESET" "$CMD"
+    else
+        printf '%b[MISSING]%b %s\n' "$REMOTE_RED" "$REMOTE_RESET" "$CMD"
+        MISSING=1
+    fi
+done
+# make sure we can access the Linux system information
+if [[ -r /proc/stat && -r /proc/net/route && -d /sys/class/net ]]; then
+    printf '%b[OK]%b Linux system statistics available.\n' "$REMOTE_GREEN" "$REMOTE_RESET"
+else
+    printf '%b[ERROR]%b Cannot access Linux system statistics.\n' "$REMOTE_RED" "$REMOTE_RESET"
+    MISSING=1
+fi
+# python will serve our HTML and JSON files
+if command -v python3 >/dev/null 2>&1; then
+    python3 --version
+    if ! python3 -c 'import http.server' 2>/dev/null; then
+        printf '%b[ERROR]%b Python HTTP server module unavailable.\n' "$REMOTE_RED" "$REMOTE_RESET"
+        MISSING=1
+    fi
+fi
+exit "$MISSING"
+REMOTE_CHECK
+    ok "EC2 requirements passed."
+else
+    error "EC2 is missing something we need."
+    echo "Deployment stopped before making changes."
+    exit 1
+fi
+# automated the mkdir folders and subfulders to transfer files; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+echo ""
+info "Creating project folders on EC2..."
+if ssh -i "$KEY_PATH" \
+    -o IdentitiesOnly=yes \
+    -o ConnectTimeout=10 \
+    -o WarnWeakCrypto=no-pq-kex \
+    "$SSH_USER@$EC2_HOST" \
+    'mkdir -p "$HOME/ec2-monitoring-tool/remote/scripts" "$HOME/ec2-monitoring-tool/remote/public"'
+then
+    ok "Remote folders are ready."
+else
+    error "Could not create the remote folders."
+    exit 1
+fi
+# automated the upload of scripts to the ec2 instance; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+echo ""
+info "Uploading monitoring scripts..."
+if scp -q -i "$KEY_PATH" \
+    -o IdentitiesOnly=yes \
+    -o ConnectTimeout=10 \
+    -o WarnWeakCrypto=no-pq-kex \
+    "$PROJECT_DIR/remote/scripts/monitor.sh" \
+    "$PROJECT_DIR/remote/scripts/manage.sh" \
+    "$SSH_USER@$EC2_HOST:ec2-monitoring-tool/remote/scripts/"
+then
+    file "monitor.sh"
+    file "manage.sh"
+    ok "Monitoring scripts uploaded."
+else
+    error "Failed to upload monitoring scripts."
+    exit 1
+fi
+# automated the upload of dashboard files; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+echo ""
+info "Uploading dashboard files..."
+
+if scp -q -i "$KEY_PATH" \
+    -o IdentitiesOnly=yes \
+    -o ConnectTimeout=10 \
+    -o WarnWeakCrypto=no-pq-kex \
+    "$PROJECT_DIR/remote/public/index.html" \
+    "$PROJECT_DIR/remote/public/styles.css" \
+    "$PROJECT_DIR/remote/public/app.js" \
+    "$SSH_USER@$EC2_HOST:ec2-monitoring-tool/remote/public/"
+then
+    file "index.html"
+    file "styles.css"
+    file "app.js"
+    ok "Dashboard files uploaded."
+else
+    error "Failed to upload dashboard files."
+    exit 1
+fi
+# doing a verification check to make sure all files were transferred from local env to the ec2 successfully; '-o WarnWeakCrypto=no-pq-kex \' should silence OpenSSH warnings in terminal
+echo ""
+info "Verifying uploaded files..."
+if ssh -i "$KEY_PATH" \
+    -o IdentitiesOnly=yes \
+    -o ConnectTimeout=10 \
+    -o WarnWeakCrypto=no-pq-kex \
+    "$SSH_USER@$EC2_HOST" \
+    'test -s "$HOME/ec2-monitoring-tool/remote/scripts/monitor.sh" &&
+     test -s "$HOME/ec2-monitoring-tool/remote/scripts/manage.sh" &&
+     test -s "$HOME/ec2-monitoring-tool/remote/public/index.html" &&
+     test -s "$HOME/ec2-monitoring-tool/remote/public/styles.css" &&
+     test -s "$HOME/ec2-monitoring-tool/remote/public/app.js"'
+then
+    ok "All five project files verified."
+else
+    error "One or more uploaded files are missing or empty."
+    exit 1
+fi
+
+
+
+
+#! check json data for first and second reads
+
+if ssh -i "$KEY_PATH" \
+    -o IdentitiesOnly=yes \
+    -o ConnectTimeout=10 \
+    -o WarnWeakCrypto=no-pq-kex \
+    "$SSH_USER@$EC2_HOST" 'bash -s' <<'REMOTE_COLLECTOR'; then
+
+
+cd "$HOME/ec2-monitoring-tool/remote/public"
+mkdir "data"
+JSON_FILE="$HOME/ec2-monitoring-tool/remote/public/data/metrics.json"
+FIRST_UPDATE=$(date -r "$JSON_FILE" +%s) || exit 1
+sleep 5
+SECOND_UPDATE=$(date -r "$JSON_FILE" +%s) || exit 1
+if (( SECOND_UPDATE <= FIRST_UPDATE )); then
+    echo "[ERROR] JSON exists but is not updating."
+    exit 1
+fi
+
+echo "[OK] JSON is valid and updating."
